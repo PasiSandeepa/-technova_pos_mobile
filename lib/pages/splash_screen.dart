@@ -1,6 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import 'app_layout.dart';
+import 'change_customer_password_page.dart';
 import 'home_page.dart';
+import 'login_page.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -32,25 +36,56 @@ class _SplashScreenState extends State<SplashScreen>
     );
 
     // Fade Animation
-    _fadeAnimation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeIn,
-    );
+    _fadeAnimation = CurvedAnimation(parent: _controller, curve: Curves.easeIn);
 
     // Start animation
     _controller.forward();
 
     // Open the UI after the splash screen.
-    Timer(const Duration(seconds: 5), () {
-      if (!mounted) return;
+    Timer(const Duration(seconds: 5), _restoreSessionOrOpenHome);
+  }
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => const HomePage(),
-        ),
-      );
-    });
+  Future<void> _restoreSessionOrOpenHome() async {
+    final sessionStore = CustomerSessionStore();
+    final refreshToken = await sessionStore.readRefreshToken();
+    if (refreshToken != null && refreshToken.isNotEmpty) {
+      try {
+        final response = await HttpAuthRepository().refreshToken(
+          refreshToken: refreshToken,
+        );
+        await sessionStore.save(response);
+        if (!mounted) return;
+        final page = response.user.mustChangePassword
+            ? ChangeCustomerPasswordPage(
+                repository: HttpAuthRepository(
+                  accessToken: response.tokens.accessToken,
+                ),
+                sessionStore: sessionStore,
+                loginPageBuilder: (_) => const LoginPage(),
+              )
+            : AppLayout(
+                initialRoute: 'Customer Dashboard',
+                customerMode: true,
+                customerUser: response.user,
+                customerAccessToken: response.tokens.accessToken,
+                customerRefreshToken: response.tokens.refreshToken,
+                persistCustomerSession: true,
+              );
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => page),
+        );
+        return;
+      } catch (_) {
+        await sessionStore.clear();
+      }
+    }
+
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const HomePage()),
+    );
   }
 
   @override
@@ -71,11 +106,7 @@ class _SplashScreenState extends State<SplashScreen>
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              Color(0xFF064E46),
-              Color(0xFF087F73),
-              Color(0xFF0D9488),
-            ],
+            colors: [Color(0xFF064E46), Color(0xFF087F73), Color(0xFF0D9488)],
           ),
         ),
 
@@ -84,7 +115,6 @@ class _SplashScreenState extends State<SplashScreen>
             // ============================================
             // DECORATIVE CIRCLE - TOP RIGHT
             // ============================================
-
             Positioned(
               top: -100,
               right: -80,
@@ -93,7 +123,7 @@ class _SplashScreenState extends State<SplashScreen>
                 height: 240,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.06),
+                  color: Colors.white.withValues(alpha: 0.06),
                 ),
               ),
             ),
@@ -101,7 +131,6 @@ class _SplashScreenState extends State<SplashScreen>
             // ============================================
             // DECORATIVE CIRCLE - BOTTOM LEFT
             // ============================================
-
             Positioned(
               bottom: -120,
               left: -90,
@@ -110,7 +139,7 @@ class _SplashScreenState extends State<SplashScreen>
                 height: 280,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.05),
+                  color: Colors.white.withValues(alpha: 0.05),
                 ),
               ),
             ),
@@ -118,7 +147,6 @@ class _SplashScreenState extends State<SplashScreen>
             // ============================================
             // MAIN CONTENT
             // ============================================
-
             Center(
               child: FadeTransition(
                 opacity: _fadeAnimation,
@@ -132,7 +160,6 @@ class _SplashScreenState extends State<SplashScreen>
                       // ====================================
                       // LOGO
                       // ====================================
-
                       FractionallySizedBox(
                         widthFactor: 0.80,
                         child: Container(
@@ -143,7 +170,7 @@ class _SplashScreenState extends State<SplashScreen>
                             borderRadius: BorderRadius.circular(28),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
+                                color: Colors.black.withValues(alpha: 0.15),
                                 blurRadius: 30,
                                 offset: const Offset(0, 12),
                               ),
@@ -163,7 +190,6 @@ class _SplashScreenState extends State<SplashScreen>
                       // ====================================
                       // APP NAME
                       // ====================================
-
                       const Text(
                         'TechNova',
                         style: TextStyle(
@@ -179,13 +205,12 @@ class _SplashScreenState extends State<SplashScreen>
                       // ====================================
                       // SUB TITLE
                       // ====================================
-
                       Text(
                         'SMART RETAIL MANAGEMENT',
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: Colors.white.withOpacity(0.75),
+                          color: Colors.white.withValues(alpha: 0.75),
                           letterSpacing: 2,
                         ),
                       ),
@@ -195,7 +220,6 @@ class _SplashScreenState extends State<SplashScreen>
                       // ====================================
                       // LOADING INDICATOR
                       // ====================================
-
                       const SizedBox(
                         width: 25,
                         height: 25,
@@ -203,8 +227,7 @@ class _SplashScreenState extends State<SplashScreen>
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
 
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(
+                          valueColor: AlwaysStoppedAnimation<Color>(
                             Colors.white,
                           ),
                         ),
@@ -218,7 +241,6 @@ class _SplashScreenState extends State<SplashScreen>
             // ============================================
             // BOTTOM TEXT
             // ============================================
-
             Positioned(
               bottom: 35,
               left: 0,
@@ -230,7 +252,7 @@ class _SplashScreenState extends State<SplashScreen>
 
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.white.withOpacity(0.65),
+                  color: Colors.white.withValues(alpha: 0.65),
                 ),
               ),
             ),
@@ -240,4 +262,3 @@ class _SplashScreenState extends State<SplashScreen>
     );
   }
 }
-

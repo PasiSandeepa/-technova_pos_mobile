@@ -1,10 +1,76 @@
 import 'package:flutter/material.dart';
 
+import '../services/customer_app_service.dart';
+import '../services/staff_api_service.dart';
 import 'products/viewCategory.dart';
 import 'products/view_product.dart';
 
-class ProductsPage extends StatelessWidget {
-  const ProductsPage({Key? key}) : super(key: key);
+class ProductsPage extends StatefulWidget {
+  final CustomerAppService? service;
+  final StaffApiService? staffService;
+
+  const ProductsPage({super.key, this.service, this.staffService});
+
+  @override
+  State<ProductsPage> createState() => _ProductsPageState();
+}
+
+class _ProductsPageState extends State<ProductsPage> {
+  Future<Map<String, int>>? _overviewFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.service != null || widget.staffService != null) {
+      _overviewFuture = _loadOverview();
+    }
+  }
+
+  Future<Map<String, int>> _loadOverview() async {
+    final results = await Future.wait([
+      widget.staffService != null
+          ? widget.staffService!.getCatalogProducts(page: 1, pageSize: 1)
+          : widget.service!.getProducts(page: 1, pageSize: 1),
+      widget.staffService != null
+          ? widget.staffService!.getCatalogCategories()
+          : widget.service!.getCategories(),
+    ]);
+    final products = results[0] as Map<String, dynamic>;
+    final categories = results[1] as List<dynamic>;
+    final meta = products['meta'];
+    final productTotal = meta is Map<String, dynamic>
+        ? int.tryParse(meta['total']?.toString() ?? '') ?? 0
+        : (products['data'] is List ? (products['data'] as List).length : 0);
+    return {'products': productTotal, 'categories': categories.length};
+  }
+
+  Widget _buildOverview() {
+    return FutureBuilder<Map<String, int>>(
+      future: _overviewFuture,
+      builder: (context, snapshot) {
+        final counts = snapshot.data;
+        return Row(
+          children: [
+            Expanded(
+              child: _buildSummaryCard(
+                title: 'Products',
+                value: counts?['products']?.toString() ?? '—',
+                icon: Icons.inventory_2_outlined,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildSummaryCard(
+                title: 'Categories',
+                value: counts?['categories']?.toString() ?? '—',
+                icon: Icons.grid_view_rounded,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +95,10 @@ class ProductsPage extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const ViewProductsPage(),
+                        builder: (_) => ViewProductsPage(
+                          service: widget.service,
+                          staffService: widget.staffService,
+                        ),
                       ),
                     );
                   },
@@ -44,19 +113,15 @@ class ProductsPage extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => const CategoryManagementScreen(),
+                        builder: (_) => CategoryManagementScreen(
+                          service: widget.service,
+                          staffService: widget.staffService,
+                        ),
                       ),
                     );
                   },
                 ),
                 const SizedBox(height: 18),
-                _buildProductCard(
-                  context,
-                  title: 'Barcode Operations',
-                  icon: Icons.qr_code_scanner,
-                  bgColor: cardColor,
-                  onTap: () => _showCardMessage(context, 'Barcode Operations'),
-                ),
                 const SizedBox(height: 28),
                 const Align(
                   alignment: Alignment.centerLeft,
@@ -70,43 +135,13 @@ class ProductsPage extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildSummaryCard(
-                        title: 'Products',
-                        value: '0',
-                        icon: Icons.inventory_2_outlined,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _buildSummaryCard(
-                        title: 'Categories',
-                        value: '0',
-                        icon: Icons.grid_view_rounded,
-                      ),
-                    ),
-                  ],
-                ),
+                _buildOverview(),
               ],
             ),
           ),
         ),
       ),
     );
-  }
-
-  // Reusable Card Widget
-  void _showCardMessage(BuildContext context, String title) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('$title selected'),
-          duration: const Duration(milliseconds: 900),
-        ),
-      );
   }
 
   Widget _buildProductCard(
@@ -125,7 +160,7 @@ class ProductsPage extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: bgColor.withOpacity(0.3),
+              color: bgColor.withValues(alpha: 0.3),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),
@@ -180,10 +215,7 @@ class ProductsPage extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  color: Color(0xFF64748B),
-                  fontSize: 12,
-                ),
+                style: const TextStyle(color: Color(0xFF64748B), fontSize: 12),
               ),
               const SizedBox(height: 4),
               Text(
